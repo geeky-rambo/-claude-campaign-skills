@@ -23,13 +23,13 @@ campaign-creator
 ## Installation
 
 ```bash
-git clone https://github.com/geeky-rambo/claude-campaign-skills.git
+git clone https://github.com/geeky-rambo/-claude-campaign-skills.git
 
 # Copy the four skill folders into your Claude skills directory
-cp -r claude-campaign-skills/campaign-creator ~/.claude/skills/
-cp -r claude-campaign-skills/emailbison ~/.claude/skills/
-cp -r claude-campaign-skills/email-spam-fixer ~/.claude/skills/
-cp -r claude-campaign-skills/spintax-creator ~/.claude/skills/
+cp -r ./-claude-campaign-skills/campaign-creator ~/.claude/skills/
+cp -r ./-claude-campaign-skills/emailbison ~/.claude/skills/
+cp -r ./-claude-campaign-skills/email-spam-fixer ~/.claude/skills/
+cp -r ./-claude-campaign-skills/spintax-creator ~/.claude/skills/
 
 # Set up sender cache
 cp ~/.claude/skills/emailbison/sender-cache.template.md ~/.claude/skills/emailbison/sender-cache.md
