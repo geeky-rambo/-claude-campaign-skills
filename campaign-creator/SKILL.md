@@ -54,11 +54,17 @@ Extract from the copy source:
 | 3 | false | 3–4 | Required (e.g. `triαl for {COMPANY}`) |
 | 4 | true | 2–3 | `"[Email 3 subject]"` — bare subject, NO "Re:" prefix (API adds it automatically) |
 
-**Labeled email variants (e.g., Email 1a / Email 1b):**
+**Labeled email variants (e.g., Email 1a / Email 1b / Email 1c):**
 STOP immediately. Before proceeding:
 1. List every labeled variant found with its label and first line
 2. Ask the user: "I found [N] variants: [list]. Which variant goes in which sequence step?"
 3. Wait for the user's answer. Do NOT guess, default, or merge variants.
+
+**If all variants are for Step 1** (e.g. Email 1a, 1b, 1c all open the sequence), offer two choices:
+- **A/B/C test (recommended):** All variants go in as Step 1 + A/B/C variants. EmailBison rotates them automatically. Set `variant: true, variant_from_step: 1` on every variant after 1a. Step 2 onward follows all branches.
+- **Pick one:** Choose one as the single Step 1, discard the rest (or save for a future campaign).
+
+Wait for the user's choice before continuing.
 
 Each labeled variant is a COMPLETE, INDEPENDENT email.
 - Spintax is applied to one email at a time using only its own lines
@@ -119,6 +125,9 @@ The email-spam-fixer skill handles all fixes. The fix_spam.py script replaces ev
 
 Invoke fix_spam.py with `--summary` flag. The Spam Fix Summary table in Step 8 uses `words_fixed` count and `unique_words` list from the summary output.
 
+**Post-fix variable token integrity check (required):**
+After running fix_spam.py, scan the output for `{{...}}` variable placeholder tokens (the double-brace originals before Step 5 conversion). The spam fixer replaces characters inside ALL text, including token names. If any character inside a variable name was replaced with a Unicode/Cyrillic lookalike — e.g. `{{other_exec_namе}}` where the final `e` is Cyrillic U+0435 — restore it to ASCII before continuing. Corrupted token names break EmailBison variable resolution silently. Only plain-text word occurrences should carry the Cyrillic fix, not the token names.
+
 ---
 
 ### Step 5 — Convert Variables to EmailBison Format
@@ -127,13 +136,17 @@ Invoke fix_spam.py with `--summary` flag. The Spam Fix Summary table in Step 8 u
 
 **Two different rules depending on variable type:**
 
-**Built-in EmailBison fields → UPPERCASE WITH UNDERSCORES**
-These are standard fields EmailBison populates from the lead record. Multi-word names use underscores.
-```
-{{first_name}}           → {FIRST_NAME}
-{{company_name}}         → {COMPANY_NAME}
-{{sender_email_signature}} → {SENDER_EMAIL_SIGNATURE}
-```
+**Built-in EmailBison fields → UPPERCASE, exact names below**
+These are standard fields EmailBison auto-populates from the lead record.
+
+| Source variable (any casing) | EmailBison format |
+|---|---|
+| `{{firstName}}` / `{{first_name}}` | `{FIRST_NAME}` |
+| `{{companyName}}` / `{{company_name}}` | `{COMPANY}` ← NOT `{COMPANY_NAME}` |
+| `{{job_title}}` / `{{jobTitle}}` | `{TITLE}` ← NOT `{JOB TITLE}` |
+| `{{sender_signature}}` / `{{signature}}` | `{SENDER_EMAIL_SIGNATURE}` |
+| `{{lastName}}` / `{{last_name}}` | `{LAST_NAME}` |
+| `{{email}}` | `{EMAIL}` |
 
 **Custom variables → UPPERCASE, SPACES ALLOWED**
 Custom variables created per-lead (Clay enrichment, manual entry, etc.) do NOT need underscores. Spaces are valid inside `{}` for custom variable names.
@@ -144,8 +157,8 @@ Custom variables created per-lead (Clay enrichment, manual entry, etc.) do NOT n
 {{competitor tool}}  → {COMPETITOR TOOL}
 ```
 
-**Common built-in EmailBison fields (use underscores):**
-`{FIRST_NAME}`, `{LAST_NAME}`, `{COMPANY_NAME}`, `{EMAIL}`, `{SENDER_EMAIL_SIGNATURE}`
+**Common built-in EmailBison fields:**
+`{FIRST_NAME}`, `{LAST_NAME}`, `{COMPANY}`, `{TITLE}`, `{EMAIL}`, `{SENDER_EMAIL_SIGNATURE}`
 
 Flag which variables need custom enrichment (e.g., via Clay export) vs. standard EmailBison lead fields.
 
@@ -268,10 +281,16 @@ Use the confirmed endpoints from the emailbison skill. Do NOT guess endpoint pat
     "include_auto_replies_in_stats": false, "sequence_prioritization": "followups",
     "max_emails_per_day": 200, "max_new_leads_per_day": 50}
 
-5. ASK user which sender accounts to attach — do not assume
-   call_api GET /api/sender-emails → list available senders
-   Show list → confirm selection
-   call_api POST /api/campaigns/{id}/attach-sender-emails {"sender_email_ids": [...]}
+5. Attach sender accounts:
+   - Read emailbison/sender-cache.md first. If the current workspace has a cached "primary"
+     batch, use those IDs directly and skip all API calls.
+   - If not cached: fetch all sender pages via direct HTTP (see emailbison/SKILL.md pagination
+     note — the MCP sender_emails list action does NOT support page parameters).
+   - When user says "primary only": exclude any sender where ANY tag name contains "Backup"
+     (case-insensitive). Tags like "Backup + India", "Backup + USA", "Backup + Emea",
+     "Batch 2 (backup)" are all excluded. Remaining senders are primary.
+   - After filtering, save the primary IDs to sender-cache.md under the workspace name.
+   - mcp__emailbison__campaigns action=attach_sender_emails {"sender_email_ids": [...]}
 
 6. call_api POST /api/campaigns/{id}/schedule
    {"monday":true,"tuesday":true,"wednesday":true,"thursday":true,"friday":true,

@@ -7,48 +7,51 @@ description: Reference skill for working with the EmailBison MCP. Contains all r
 
 ## Connection
 
-- **MCP:** `emailbison` (HTTP, connected to `https://mcp.emailbison.com/mcp`)
-- **Instance URL:** `https://send.oneaway.io`
-- **Auth:** Configured via MCP headers — no manual API key needed in tool calls
+- **MCP type:** Hosted HTTP MCP endpoint — no local install required
+- **Setup:** Follow your EmailBison instance's MCP setup guide at
+  `https://[your-instance-url]/integrations/emailbison-mcp`
+  Register the MCP endpoint in Claude's MCP settings with your API token.
+- **Tool style:** Composite tools — `mcp__emailbison__campaigns`, `mcp__emailbison__sequences`,
+  `mcp__emailbison__sender_emails`, `mcp__emailbison__settings`, `mcp__emailbison__workspaces`, etc.
+  There is NO standalone `call_api` tool — use the composite tools below.
+- **Auth:** Bearer token configured once in MCP settings — no manual key needed in tool calls.
+- **API base URL:** Your instance URL + `/api` — set once in MCP config, not repeated in calls.
 
 ---
 
 ## Confirmed API Endpoint Reference
 
-Base URL for all call_api calls: `https://send.oneaway.io/api`
-
 Do NOT use search_api_spec for these operations — endpoints are confirmed here.
 
 ### Workspace Management
 
-Use `get_account_details` (named tool) to verify the current workspace.
+Use `mcp__emailbison__settings action=get_account` to verify the current workspace.
 If the current workspace is wrong, ask the user to manually switch via the EmailBison dashboard,
 then confirm before continuing.
 
-Sub-workspace switching via API is not supported on the HTTP MCP — the `/workspaces/v1.1`
-endpoints do not exist on this server. Do NOT attempt `call_api` for workspace switching.
+Sub-workspace switching via API is not supported — do NOT attempt programmatic workspace switching.
 
 ### Custom Variables
 
-| Operation | Method | Endpoint |
-|---|---|---|
-| List variables | GET | `/api/custom-variables` |
-| Create variable | POST | `/api/custom-variables` |
+| Operation | MCP Tool + Action |
+|---|---|
+| List variables | `mcp__emailbison__settings action=list_custom_variables` |
+| Create variable | `mcp__emailbison__settings action=create_custom_variable` |
 
 ### Campaign Operations
 
-| Operation | Method | Endpoint | Body |
-|---|---|---|---|
-| List campaigns | GET | `/api/campaigns` | — |
-| Create campaign | POST | `/api/campaigns` | `{"name":"...","type":"outbound"}` |
-| Get campaign | GET | `/api/campaigns/{id}` | — |
-| Update campaign | PATCH | `/api/campaigns/{id}/update` | settings object |
-| Pause | POST | `/api/campaigns/{id}/pause` | — |
-| Resume | PATCH | `/api/campaigns/{id}/resume` | — |
-| List attached senders | GET | `/api/campaigns/{id}/sender-emails` | — |
-| Attach senders | POST | `/api/campaigns/{id}/attach-sender-emails` | `{"sender_email_ids":[...]}` |
-| Create schedule | POST | `/api/campaigns/{id}/schedule` | schedule object |
-| Get schedule | GET | `/api/campaigns/{id}/schedule` | — |
+| Operation | MCP Tool + Action |
+|---|---|
+| List campaigns | `mcp__emailbison__campaigns action=list` |
+| Create campaign | `mcp__emailbison__campaigns action=create` — `name`, `type="outbound"` |
+| Get campaign | `mcp__emailbison__campaigns action=get` — `campaign_id` |
+| Update campaign | `mcp__emailbison__campaigns action=update` — `campaign_id` + settings |
+| Pause | `mcp__emailbison__campaigns action=pause` — `campaign_id` |
+| Resume | `mcp__emailbison__campaigns action=resume` — `campaign_id` |
+| List attached senders | `mcp__emailbison__campaigns action=get_sender_emails` — `campaign_id` |
+| Attach senders | `mcp__emailbison__campaigns action=attach_sender_emails` — `campaign_id`, `sender_email_ids` |
+| Create schedule | `mcp__emailbison__campaigns action=create_schedule` — `campaign_id` + schedule fields |
+| Get schedule | `mcp__emailbison__campaigns action=get_schedule` — `campaign_id` |
 
 **Create schedule body must include `"save_as_template": false` or the API returns 422.**
 
@@ -66,11 +69,11 @@ Full default body:
 
 ### Sequence Steps
 
-| Operation | Method | Endpoint |
-|---|---|---|
-| Get steps | GET | `/api/campaigns/v1.1/{campaign_id}/sequence-steps` |
-| Create steps | POST | `/api/campaigns/v1.1/{campaign_id}/sequence-steps` |
-| Delete step | DELETE | `/api/campaigns/sequence-steps/{step_id}` |
+| Operation | MCP Tool + Action |
+|---|---|
+| Get steps | `mcp__emailbison__sequences action=get` — `campaign_id` |
+| Create steps | `mcp__emailbison__sequences action=create` — `campaign_id`, `title`, `steps` array |
+| Delete step | `mcp__emailbison__sequences action=delete_step` — `sequence_step_id` |
 
 **Warning — PUT step update is unreliable:** PUT `/api/campaigns/v1.1/sequence-steps/{step_id}`
 frequently returns 422. If sequence step bodies or subjects need fixing after campaign creation,
@@ -124,9 +127,9 @@ different values — do not confuse them.
 
 ### Sender Emails (Global List)
 
-```
-call_api GET /api/sender-emails
-```
+`mcp__emailbison__sender_emails action=list`
+
+> ⚠️ **Pagination limitation:** The `sender_emails action=list` does NOT support page parameters. Values passed are silently ignored and page 1 (15 results) is always returned. See the Pagination section below for the workaround.
 
 ---
 
@@ -231,6 +234,18 @@ The API paginates all list endpoints (default 15 per page).
 - Leads: `per_page=100&page=N`
 - Campaigns: `per_page=100&page=N`
 
+### ⚠️ MCP sender_emails pagination limitation
+
+`mcp__emailbison__sender_emails action=list` does **NOT** support page parameters.
+The MCP schema exposes no `page` or `per_page` fields for this action — any values passed are silently ignored and page 1 (15 results) is always returned.
+
+**For workspaces with more than 15 senders:**
+1. **Use sender-cache.md first** — if the workspace's primary sender IDs are already cached, skip pagination entirely.
+2. **If not cached:** use direct HTTP calls (curl or equivalent) with your Bearer token:
+   `GET /api/sender-emails?per_page=100&page=N` — loop through all pages, filter client-side.
+   Your Bearer token is stored in the MCP process environment — check your MCP config for the value.
+3. **After filtering:** append the workspace name and primary sender IDs to `sender-cache.md` so future campaigns skip this step.
+
 ---
 
 ## Spintax Format
@@ -254,33 +269,34 @@ The leading `{{` is the outer spintax `{` immediately followed by `{FIRST_NAME}`
 ## Standard Campaign Creation Order
 
 ```
-1. get_account_details (named tool) → verify current workspace matches the client
+1. mcp__emailbison__settings action=get_account → verify current workspace matches the client
    If wrong: ask user to switch manually in EmailBison dashboard → wait for confirmation
 
-2. call_api GET /api/custom-variables → check what custom variables already exist
+2. mcp__emailbison__settings action=list_custom_variables → check what custom variables already exist
    422 if near 15 vars: just attempt creation and handle 422s
 
-3. call_api POST /api/custom-variables {"name": "VAR_NAME"} → create each missing variable
+3. mcp__emailbison__settings action=create_custom_variable {"name": "VAR_NAME"} → create each missing variable
    422 = already exists → treat as success, continue
 
-4. create_campaign (named tool) → type=outbound, save returned campaign_id
+4. mcp__emailbison__campaigns action=create → name="...", type="outbound", save returned campaign_id
 
-5. call_api PATCH /api/campaigns/{id}/update → apply Campaign Defaults (see above)
+5. mcp__emailbison__campaigns action=update → campaign_id + Campaign Defaults (see above)
 
 6. Read sender-cache.md (same dir as this skill) → if workspace has cached IDs, confirm batch with user, skip API
-   If not cached → call_api GET /api/sender-emails?per_page=100 → show list → confirm with user
-   → append workspace name, ID, and sender IDs to sender-cache.md → call_api POST /api/campaigns/{id}/attach-sender-emails
+   If not cached → use direct HTTP GET /api/sender-emails?per_page=100&page=N (loop all pages) → filter client-side
+   → append workspace name, ID, and sender IDs to sender-cache.md
+   → mcp__emailbison__campaigns action=attach_sender_emails → campaign_id + sender_email_ids
 
-7. call_api POST /api/campaigns/{id}/schedule
+7. mcp__emailbison__campaigns action=create_schedule → campaign_id + schedule body
    Body must include "save_as_template": false (required to avoid 422)
    Default: Mon-Fri, 08:00-17:00 ET
 
-8. call_api POST /api/campaigns/v1.1/{id}/sequence-steps → all steps in one call
+8. mcp__emailbison__sequences action=create → campaign_id + all steps in one call
 
-9. get_campaign (named tool) → verify step count, thread_reply values, subjects present
+9. mcp__emailbison__campaigns action=get → campaign_id → verify step count, thread_reply values, subjects present
 
 10. STOP → show summary → wait for "activate"/"go live"
-    Then: call_api PATCH /api/campaigns/{id}/resume
+    Then: mcp__emailbison__campaigns action=resume → campaign_id
 ```
 
 ---
@@ -308,6 +324,6 @@ Sender IDs for known workspaces are stored in `sender-cache.md` (same directory 
 **Step 6 of every campaign:**
 1. Read `sender-cache.md`
 2. If the current workspace has cached IDs → confirm batch with user → skip API entirely
-3. If not cached → call_api GET /api/sender-emails?per_page=100 → show list → confirm
+3. If not cached → use direct HTTP GET /api/sender-emails?per_page=100&page=N (loop all pages) → show list → confirm
    → append workspace name, ID, and sender IDs to `sender-cache.md` before continuing
-4. call_api POST /api/campaigns/{id}/attach-sender-emails {"sender_email_ids": [...]}
+4. mcp__emailbison__campaigns action=attach_sender_emails {"sender_email_ids": [...]}

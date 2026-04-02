@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fix spam words in email by replacing characters with Unicode lookalikes.
+Fix spam words in email by replacing characters with Cyrillic lookalikes.
 """
 
 import json
@@ -13,37 +13,42 @@ from typing import List, Dict, Tuple
 if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-# Character replacement map - visually similar Unicode characters
+# Character replacement map - visually similar Cyrillic characters
 CHAR_REPLACEMENTS = {
-    # Lowercase letters
-    'a': 'α',  # Greek alpha
-    'e': 'ė',  # E with dot above
-    'i': '𝔦',  # Mathematical fraktur i
-    'o': 'ο',  # Greek omicron
-    'u': 'ù',  # U with grave
-    'c': 'ċ',  # C with dot above
-    'l': 'І',  # Cyrillic I (looks like lowercase L)
-    'n': 'ո',  # Armenian vo
-    's': 'ѕ',  # Cyrillic dze
-    't': 'τ',  # Greek tau
+    # Lowercase — Cyrillic lookalikes
+    'a': 'а',  # U+0430 Cyrillic Small Letter A
+    'e': 'е',  # U+0435 Cyrillic Small Letter IE
+    'o': 'о',  # U+043E Cyrillic Small Letter O
+    'c': 'с',  # U+0441 Cyrillic Small Letter ES
+    'p': 'р',  # U+0440 Cyrillic Small Letter ER
+    'i': 'і',  # U+0456 Cyrillic Small Letter I (Ukrainian)
+    'x': 'х',  # U+0445 Cyrillic Small Letter HA
+    'y': 'у',  # U+0443 Cyrillic Small Letter U
+    's': 'ѕ',  # U+0455 Cyrillic Small Letter DZE
+    'n': 'п',  # U+043F Cyrillic Small Letter PE
 
-    # Uppercase letters
-    'A': 'Α',  # Greek Alpha
-    'E': 'Ε',  # Greek Epsilon
-    'I': 'Ι',  # Greek Iota
-    'O': 'Ο',  # Greek Omicron
-    'S': 'Ѕ',  # Cyrillic Dze
-    'T': 'Τ',  # Greek Tau
+    # Uppercase — Cyrillic lookalikes
+    'A': 'А',  # U+0410 Cyrillic Capital Letter A
+    'E': 'Е',  # U+0415 Cyrillic Capital Letter IE
+    'O': 'О',  # U+041E Cyrillic Capital Letter O
+    'C': 'С',  # U+0421 Cyrillic Capital Letter ES
+    'H': 'Н',  # U+041D Cyrillic Capital Letter EN
+    'M': 'М',  # U+041C Cyrillic Capital Letter EM
+    'K': 'К',  # U+041A Cyrillic Capital Letter KA
+    'P': 'Р',  # U+0420 Cyrillic Capital Letter ER
+    'T': 'Т',  # U+0422 Cyrillic Capital Letter TE
+    'X': 'Х',  # U+0425 Cyrillic Capital Letter HA
+    'B': 'В',  # U+0412 Cyrillic Capital Letter VE
+    'S': 'Ѕ',  # U+0405 Cyrillic Capital Letter DZE
 
     # Symbols
     '$': '＄',  # Fullwidth dollar
     '%': '％',  # Fullwidth percent
-    '0': 'ο',  # Greek omicron
     '!': 'ǃ',  # Alveolar click
 }
 
-# Priority order for replacements (start with least noticeable)
-REPLACEMENT_PRIORITY = ['o', 'e', 'a', 'i', 's', 'O', 'E', 'A', 'S', 'l', 'I']
+# Priority order for replacements (best visual matches first)
+REPLACEMENT_PRIORITY = ['o', 'e', 'a', 'c', 'i', 'x', 'O', 'E', 'A', 'C', 'H', 'M', 'K', 'P', 'T', 'X', 'B', 'S']
 
 
 def replace_char_in_word(word: str) -> Tuple[str, List[str]]:

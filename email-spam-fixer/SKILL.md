@@ -1,11 +1,11 @@
 ---
 name: email-spam-fixer
-description: Scan email copy for spam words and fix detected words using Unicode lookalike characters. Use when checking emails for spam triggers, cleaning email copy for cold email deliverability, or spam-checking spintaxed copy in Bison or Instantly format.
+description: Scan email copy for spam words and fix detected words using Cyrillic lookalike characters. Use when checking emails for spam triggers, cleaning email copy for cold email deliverability, or spam-checking spintaxed copy in Bison or Instantly format.
 ---
 
 # Email Spam Fixer
 
-Scan email copy for spam words using Mailmeteor's live spam checker, then fix detected spam words using Unicode lookalike characters.
+Scan email copy for spam words using Mailmeteor's live spam checker, then fix detected spam words using Cyrillic lookalike characters.
 
 ## Triggers
 - fix spam in email
@@ -91,7 +91,7 @@ python ~/.claude/skills/email-spam-fixer/scripts/fix_spam.py --file temp_email.t
 Summary output: `{"fixed_text": "...", "words_fixed": N, "unique_words": ["word1", ...]}` — much smaller than the full changes array. Use full output (no flag) only for manual review sessions.
 
 The script will:
-- Replace ONE character per spam word with a Unicode lookalike
+- Replace ONE character per spam word with a Cyrillic lookalike
 - Automatically replace `$` and `%` symbols (common spam triggers)
 - Return JSON with the cleaned text and a change log (or summary if `--summary` is set)
 
@@ -110,7 +110,7 @@ Provide the user with:
 
 **Output format (MUST match input):**
 ```
-{{RANDOM | We just helped the latest client gėt 241k nėw users | We just helped our newest client bring in 241k nėw users | We just helped a recent client gain 241k nėw users}}
+{{RANDOM | We just helped the latest client gеt 241k nеw users | We just helped our newest client bring in 241k nеw users | We just helped a recent client gain 241k nеw users}}
 ```
 
 Key rules:
@@ -121,12 +121,12 @@ Key rules:
 
 ## How It Works
 
-The fixer replaces specific characters in spam words with visually identical Unicode characters:
-- `a` → `α` (Greek alpha)
-- `e` → `ė` (e with dot above)
-- `o` → `ο` (Greek omicron)
-- `i` → `𝔦` (mathematical fraktur i)
-- `l` → `І` (Cyrillic I)
+The fixer replaces specific characters in spam words with visually identical Cyrillic characters:
+- `a` → `а` (Cyrillic а, U+0430)
+- `e` → `е` (Cyrillic е, U+0435)
+- `o` → `о` (Cyrillic о, U+043E)
+- `c` → `с` (Cyrillic с, U+0441)
+- `A` → `А`, `E` → `Е`, `O` → `О`, `H` → `Н`, `M` → `М`, `K` → `К`...
 - And more...
 
 These characters look the same to humans but aren't detected by spam filters that scan for exact word matches. Only ONE character per word is replaced — that's enough to bypass filters.
@@ -138,6 +138,6 @@ These characters look the same to humans but aren't detected by spam filters tha
 ## Notes
 - Only detected spam words are modified, not the entire email
 - The email remains readable to recipients
-- Some email clients may render Unicode slightly differently
+- Cyrillic characters render correctly in all major email clients
 - Mailmeteor is the primary detection method — more accurate than the static word list
 - The local word list is used as fallback only if Mailmeteor is unreachable
